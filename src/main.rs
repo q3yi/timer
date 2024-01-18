@@ -1,11 +1,14 @@
+mod term_progress;
+
 use std::{
-    io::{self, Write},
+    io::{self, IsTerminal},
     thread,
-    time::{Duration, Instant, SystemTime},
+    time::{Instant, SystemTime},
 };
 
 use clap::Parser;
-use crossterm::{cursor, terminal, QueueableCommand};
+
+use term_progress::TermProgress;
 
 /// Simple timer in terminal
 #[derive(Parser, Debug)]
@@ -33,46 +36,13 @@ fn main() -> io::Result<()> {
         humantime::format_duration(duration),
     );
 
-    let mut stdout = io::stdout();
-
-    loop {
-        let elapsed = start_time.elapsed();
-        let elapsed = if elapsed > duration { duration } else { elapsed };
-
-        let (_, y) = cursor::position()?;
-        let (w, _) = terminal::size()?;
-
-        stdout
-            .queue(terminal::Clear(terminal::ClearType::CurrentLine))?
-            .queue(cursor::MoveTo(0, y))?
-            .queue(cursor::Hide)?;
-
-        let time_span = format!(
-            "{}/{}",
-            humantime::format_duration(Duration::from_secs(elapsed.as_secs())),
-            humantime::format_duration(duration)
-        );
-        let bar_width = w - time_span.len() as u16 - 4;
-        let progress = elapsed.as_millis() * bar_width as u128 / duration.as_millis();
-
-        write!(
-            stdout,
-            "[{}{}][{}]",
-            "#".repeat(progress as usize),
-            "-".repeat(bar_width as usize - progress as usize),
-            time_span
-        )?;
-
-        stdout.flush()?;
-
-        if elapsed == duration {
-            break;
-        }
-
-        thread::sleep(Duration::from_millis(100));
+    let stdout = io::stdout();
+    if stdout.is_terminal() {
+        let mut progress_bar = TermProgress::with_stdout(stdout);
+        progress_bar.show_progress(start_time, duration)?;
+    } else {
+        thread::sleep(duration);
     }
-
-    stdout.queue(cursor::Show)?;
 
     Ok(())
 }

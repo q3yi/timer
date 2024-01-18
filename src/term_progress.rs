@@ -1,0 +1,75 @@
+use std::{
+    io::{self, Stdout, Write},
+    thread,
+    time::{Duration, Instant},
+};
+
+use crossterm::{cursor, style::Stylize, terminal, QueueableCommand};
+
+pub(crate) struct TermProgress {
+    stdout: Stdout,
+}
+
+impl TermProgress {
+    pub(crate) fn with_stdout(stdout: Stdout) -> Self {
+        TermProgress { stdout }
+    }
+
+    pub(crate) fn show_progress(
+        &mut self,
+        start_time: Instant,
+        duration: Duration,
+    ) -> io::Result<()> {
+        self.stdout.queue(cursor::Hide)?;
+
+        loop {
+            let elapsed = start_time.elapsed();
+            let elapsed = if elapsed > duration {
+                duration
+            } else {
+                elapsed
+            };
+
+            let (_, y) = cursor::position()?;
+            let (w, _) = terminal::size()?;
+
+            self.stdout
+                .queue(terminal::Clear(terminal::ClearType::CurrentLine))?
+                .queue(cursor::MoveTo(0, y))?
+                .queue(cursor::Hide)?;
+
+            let percents = format!(
+                "{:>5.1}%",
+                100.0 * elapsed.as_secs() as f64 / duration.as_secs() as f64
+            );
+            let bar_width = w - percents.len() as u16 - 2;
+            let progress = elapsed.as_millis() * bar_width as u128 / duration.as_millis();
+
+            write!(
+                self.stdout,
+                " {}{} {}",
+                "\u{2587}".repeat(progress as usize).blue(),
+                "\u{2587}"
+                    .repeat(bar_width as usize - progress as usize)
+                    .dark_grey(),
+                percents
+            )?;
+
+            self.stdout.flush()?;
+
+            if elapsed >= duration {
+                break;
+            }
+
+            thread::sleep(Duration::from_millis(100));
+        }
+        Ok(())
+    }
+}
+
+impl Drop for TermProgress {
+    fn drop(&mut self) {
+        let _ = self.stdout.queue(cursor::Show);
+        let _ = self.stdout.flush();
+    }
+}
