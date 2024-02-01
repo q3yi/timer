@@ -1,10 +1,15 @@
 use std::{
-    io::{self, Stdout, Write},
+    io::{self, Error, Stdout, Write},
     thread,
     time::{Duration, Instant},
 };
 
-use crossterm::{cursor, style::Stylize, terminal, QueueableCommand};
+use crossterm::{
+    cursor,
+    event::{self, Event, KeyCode, KeyModifiers},
+    style::Stylize,
+    terminal, QueueableCommand,
+};
 
 pub(crate) struct TermProgress {
     stdout: Stdout,
@@ -23,6 +28,17 @@ impl TermProgress {
         self.stdout.queue(cursor::Hide)?;
 
         loop {
+            if let Ok(true) = event::poll(Duration::from_secs(0)) {
+                if let Ok(e) = event::read() {
+                    match e {
+                        Event::Key(key) if key.code == KeyCode::Char('c') => {
+                            return Err(Error::other("user cancelled"));
+                        }
+                        _ => (),
+                    }
+                }
+            }
+
             let elapsed = start_time.elapsed();
             let elapsed = if elapsed > duration {
                 duration
