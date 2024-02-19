@@ -6,7 +6,7 @@ use std::{
 
 use crossterm::{
     cursor,
-    event::{self, Event, KeyCode, KeyModifiers},
+    event::{self, Event, KeyCode},
     style::Stylize,
     terminal, QueueableCommand,
 };
